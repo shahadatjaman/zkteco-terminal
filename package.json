@@ -1,0 +1,1 @@
+{"name":"zk-device-sdk","version":"1.0.0","main":"src/index.js","license":"MIT","dependencies":{"i":"^0.3.7","npm":"^11.4.0","y":"^0.3.2"},"type":"module"}
