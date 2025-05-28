@@ -1,7 +1,7 @@
-import { USHRT_MAX } from "zkteco-lib/constants.js";
+import COMMANDS from "./commands.js";
 import  calculateChecksum  from "./checksum.js";
 
-
+const {USHRT_MAX} = COMMANDS;
 // export function buildPacket(command, data, sessionId, replyId) {
 
 

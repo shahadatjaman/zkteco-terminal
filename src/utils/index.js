@@ -4,8 +4,10 @@ import COMMANDS from '../lib/commands.js';
 export function checkNotEventTCP(data){
   try{
     data = removePacket(data)
-    const commandId = data.readUIntLE(0,2)
-    const event = data.readUIntLE(4,2)
+    const commandId = data.readUIntLE(0,2);
+    
+    const event = data.readUIntLE(4,2);
+    
     return event === COMMANDS.EF_ATTLOG && commandId === COMMANDS.CMD_REG_EVENT
   }catch(err){
     console.log(`[228] : ${err.toString()} ,${data.toString('hex')} `)
@@ -44,7 +46,9 @@ export function decodeRecordRealTimeLog52(recordData){
   const payload = removePacket(recordData)
         
   const recvData = payload.subarray(8)
+  const userSn = recvData.readUIntLE(0, 2);
 
+  const verifyType = recvData.readUIntLE(24, 2);
   const userId = recvData.slice(0 , 9)
   .toString('ascii')
   .split('\0')
@@ -53,6 +57,7 @@ export function decodeRecordRealTimeLog52(recordData){
 
   const attTime = parseHexToTime(recvData.subarray(26,26+6))
 
-  return { userId, attTime}
+  return { userSn,userId,verifyType,attTime: attTime}
+
 
 }

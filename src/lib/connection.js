@@ -2,9 +2,8 @@ import net from 'net';
 import COMMANDS from './commands.js';
 import { buildPacket, parseResponse,removePacket} from './packet.js';
 import { checkNotEventTCP, decodeRecordRealTimeLog52, decodeTCPHeader } from '../utils/index.js';
-import { createTCPHeader, removeTcpHeader } from 'zkteco-sha/utils.js';
 
-const { CMD_CONNECT, CMD_EXIT } = COMMANDS;
+const { CMD_CONNECT, CMD_EXIT,REQUEST_DATA } = COMMANDS;
 
 export class ZKDeviceClient {
   constructor({ ip, port = 4370, commKey = 0 }) {
@@ -43,9 +42,7 @@ export class ZKDeviceClient {
         this.socket.setTimeout(this.timeout)
       }
 
-      this.socket.connect(this.port, this.ip, ()=> {
-        console.log("new connections")
-      })
+      this.socket.connect(this.port, this.ip)
     })
   }
 
@@ -68,9 +65,7 @@ export class ZKDeviceClient {
   async authenticate() {
     return new Promise((resolve, reject) => {
       this.socket.once("data", (data) => {
-        const response = parseResponse(data);
-        console.log("📥 Response from device:", response);
-
+      
         // if (response.command === CMD_ACK_UNAUTH) {
         //   console.log("🔐 Device requires authentication...");
 
@@ -152,11 +147,11 @@ export class ZKDeviceClient {
           this.replyId++;
         }
 
-        console.log("command",command);
+       
         const packet = buildPacket(command,data,this.sessionId, this.replyId);
-        console.log("packet",packet.length);
+       
         const response = await this.writeMessage(packet, command === CMD_CONNECT || command === CMD_EXIT);
-        console.log("response",response);
+        
         const cleaned = removePacket(response);
 
         if (cleaned && cleaned.length >= 0) {
@@ -234,7 +229,7 @@ export class ZKDeviceClient {
         this.socket.on('data', handleOnData)
 
         this.socket.write(msg, null, err => {
-          console.log('msg',msg);
+          
           if (err) {
             reject(err)
           }
@@ -381,9 +376,10 @@ export class ZKDeviceClient {
 
   async getInfo() {
     try {
+      // console.log(this);
       const data = await this.executeCmd(COMMANDS.CMD_GET_FREE_SIZES, '')
 
-      console.log("data",data);
+     
       return {
         totalUsers: data.readUIntLE(24, 4),
         totalLogs: data.readUIntLE(40, 4),
@@ -398,14 +394,24 @@ export class ZKDeviceClient {
  async getRealTimeLogs(cb = () => { }) {
     this.replyId++;
 
-    const buf = createTCPHeader(COMMANDS.CMD_REG_EVENT, this.sessionId, this.replyId, Buffer.from([0x01, 0x00, 0x00, 0x00]))
-
+  
+    // console.log(this);
+    const buf = buildPacket(COMMANDS.CMD_REG_EVENT, REQUEST_DATA.GET_REAL_TIME_EVENT,this.sessionId, this.replyId)
+  
+    
     this.socket.write(buf, null, err => {
+      if(err){
+      console.log("error ar 405",err);
+      }
     })
 
+    // console.log("this.socket.listenerCount('data')",this.socket.listenerCount('data'));
     this.socket.listenerCount('data') === 0 && this.socket.on('data', (data) => {
 
+
+      
       if (!checkNotEventTCP(data)) return;
+
       if (data.length > 16) {
         cb(decodeRecordRealTimeLog52(data))
       }
@@ -413,6 +419,15 @@ export class ZKDeviceClient {
     })
 
   }
+
+ async enableDevice() {
+        try {
+            return await this.executeCmd(COMMANDS.CMD_ENABLEDEVICE, '');
+        } catch (err) {
+            console.error('Error enabling device:', err);
+            throw err;  // Optionally, re-throw the error if you need to handle it upstream
+        }
+    }
 
   async disconnect() {
     try {

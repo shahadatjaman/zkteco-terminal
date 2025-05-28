@@ -16,7 +16,7 @@ class ZKSDK {
     async functionWrapper (tcpCallback, command ){
         switch(this.connectionType){
             case 'tcp':
-                console.log("I'm tcp")
+                
                 if(this.zklibTcp.socket){
                 
                     try{
@@ -60,7 +60,6 @@ class ZKSDK {
               
                 try{
                     await this.zklibTcp.connectWithCmd();
-                    console.log('ok tcp')
                 }catch(err){
                     throw err;
                 }
@@ -89,15 +88,17 @@ class ZKSDK {
 
 
 
-
-
     async getInfo(){
         return await this.functionWrapper(
             ()=> this.zklibTcp.getInfo()
         )
     }
 
-
+  async enableDevice(){
+        return await this.functionWrapper(
+            ()=> this.zklibTcp.enableDevice()
+        )
+    }
 
     async executeCmd(command, data=''){
         return await this.functionWrapper(
@@ -106,6 +107,7 @@ class ZKSDK {
     }
 
    async getRealTimeLogs(cb){
+    console.log("<======Get realtime data from here ======>")
         return await this.functionWrapper(
             ()=> this.zklibTcp.getRealTimeLogs(cb)
         )

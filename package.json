@@ -1,1 +1,24 @@
-{"name":"zk-device-sdk","version":"1.0.0","main":"src/index.js","license":"MIT","dependencies":{"i":"^0.3.7","npm":"^11.4.0","y":"^0.3.2"},"type":"module"}
+{
+  "name": "zk-device-sdk",
+  "version": "1.0.0",
+  "description": "SDK for interacting with ZK devices",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "test": "nodemon src/test/index.js"
+  },
+  "keywords": [
+    "zk",
+    "device",
+    "sdk",
+    "biometric",
+    "fingerprint"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  }
+}
