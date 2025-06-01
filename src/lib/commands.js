@@ -31,7 +31,7 @@ export default {
   CMD_USERGRP_WRQ: 22,
   CMD_USERTZ_RRQ: 23,
   CMD_USERTZ_WRQ: 24,
-  CMD_GET_FREE_SIZES:50,
+  CMD_GET_FREE_SIZES: 50,
 
   // Attendance
   CMD_ATTLOG_RRQ: 13,
@@ -52,7 +52,7 @@ export default {
 
   // Realtime
   CMD_REG_EVENT: 500,
-  EF_ATTLOG	:1,
+  EF_ATTLOG: 1,
   // Acknowledgements
   CMD_ACK_OK: 2000,
   CMD_ACK_ERROR: 2001,
@@ -65,17 +65,18 @@ export default {
   CMD_ACK_ERROR_INIT: 65532,
   CMD_ACK_ERROR_DATA: 65531,
 
+  USHRT_MAX: 65535,
 
-  USHRT_MAX : 65535,
-
-  REQUEST_DATA : {
-    DISABLE_DEVICE :  Buffer.from([0,0,0,0]),
-    GET_REAL_TIME_EVENT: Buffer.from([0x01,0x00,0x00, 0x00]),
-    GET_ATTENDANCE_LOGS : Buffer.from([0x01, 0x0d, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]),
-    GET_USERS : Buffer.from([ 0x01, 0x09, 0x00, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]),
-},
-
-  
+  REQUEST_DATA: {
+    DISABLE_DEVICE: Buffer.from([0, 0, 0, 0]),
+    GET_REAL_TIME_EVENT: Buffer.from([0x01, 0x00, 0x00, 0x00]),
+    GET_ATTENDANCE_LOGS: Buffer.from([
+      0x01, 0x0d, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    ]),
+    GET_USERS: Buffer.from([
+      0x01, 0x09, 0x00, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    ]),
+  },
 
   DISABLE_DEVICE: Buffer.from([0, 0, 0, 0]),
   GET_REAL_TIME_EVENT: Buffer.from([0x01, 0x00, 0x00, 0x00]),
@@ -86,6 +87,3 @@ export default {
     0x01, 0x09, 0x00, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
   ]),
 };
-
-
-

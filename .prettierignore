@@ -1,0 +1,15 @@
+# Ignore non-code files
+*.md
+*.json
+*.yml
+*.yaml
+*.html
+*.css
+*.scss
+
+# Node modules
+node_modules
+
+# Build outputs
+dist
+build

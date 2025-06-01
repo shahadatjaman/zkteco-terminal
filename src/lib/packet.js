@@ -1,9 +1,8 @@
-import COMMANDS from "./commands.js";
-import  calculateChecksum  from "./checksum.js";
+import COMMANDS from './commands.js';
+import calculateChecksum from './checksum.js';
 
-const {USHRT_MAX} = COMMANDS;
+const { USHRT_MAX } = COMMANDS;
 // export function buildPacket(command, data, sessionId, replyId) {
-
 
 //   const dataBuffer = Buffer.from(data);
 //   const payload = Buffer.alloc(8 + dataBuffer.length);
@@ -18,10 +17,8 @@ const {USHRT_MAX} = COMMANDS;
 //   console.log('checksum',checksum);
 //   payload.writeUInt16LE(checksum, 2);              // now write correct checksum
 
-
 //   replyId = (replyId + 1) % USHRT_MAX;
 //   payload.writeUInt16LE(replyId, 6);
-
 
 //   // const header = Buffer.alloc(8);
 //   // header.writeUInt32BE(0x5050827d, 0);  // ✅ correct endian order
@@ -37,20 +34,16 @@ const {USHRT_MAX} = COMMANDS;
 
 //   return Buffer.concat([prefixBuf, payload]);
 
-
-
 //   // const header = Buffer.alloc(8);
 //   // header.writeUInt32LE(0x5050827d, 0);             // ZKTeco magic
 //   // header.writeUInt32LE(payload.length, 4);         // payload length
 
-
 //     // const prefixBuf = Buffer.from([0x50, 0x50, 0x82, 0x7d, 0x13, 0x00, 0x00, 0x00])
-  
+
 //     // prefixBuf.writeUInt16LE(payload.length, 4)
-  
+
 //     // return Buffer.concat([prefixBuf, payload]);
 // }
-
 
 const createChkSum = (buf) => {
   try {
@@ -71,8 +64,7 @@ const createChkSum = (buf) => {
   }
 };
 
-
-export function buildPacket(command, data,sessionId, replyId){
+export function buildPacket(command, data, sessionId, replyId) {
   const dataBuffer = Buffer.from(data);
   const buf = Buffer.alloc(8 + dataBuffer.length);
 
@@ -96,18 +88,18 @@ export function buildPacket(command, data,sessionId, replyId){
   prefixBuf.writeUInt16LE(buf.length, 4);
 
   return Buffer.concat([prefixBuf, buf]);
-};
+}
 
-export function removePacket(buf){
+export function removePacket(buf) {
   if (buf.length < 8) {
-      return buf;
-    }
-  
-    if (buf.compare(Buffer.from([0x50, 0x50, 0x82, 0x7d]), 0, 4, 0, 4) !== 0) {
-      return buf;
-    }
-  
-    return buf.slice(8);
+    return buf;
+  }
+
+  if (buf.compare(Buffer.from([0x50, 0x50, 0x82, 0x7d]), 0, 4, 0, 4) !== 0) {
+    return buf;
+  }
+
+  return buf.slice(8);
 }
 
 export function parseResponse(buffer) {
@@ -118,5 +110,3 @@ export function parseResponse(buffer) {
   const data = payload.slice(8);
   return { command, sessionId, replyId, data };
 }
-
-

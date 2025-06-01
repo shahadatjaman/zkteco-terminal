@@ -1,9 +1,13 @@
 import net from 'net';
 import COMMANDS from './commands.js';
-import { buildPacket, parseResponse,removePacket} from './packet.js';
-import { checkNotEventTCP, decodeRecordRealTimeLog52, decodeTCPHeader } from '../utils/index.js';
+import { buildPacket, parseResponse, removePacket } from './packet.js';
+import {
+  checkNotEventTCP,
+  decodeRecordRealTimeLog52,
+  decodeTCPHeader,
+} from '../utils/index.js';
 
-const { CMD_CONNECT, CMD_EXIT,REQUEST_DATA } = COMMANDS;
+const { CMD_CONNECT, CMD_EXIT, REQUEST_DATA } = COMMANDS;
 
 export class ZKDeviceClient {
   constructor({ ip, port = 4370, commKey = 0 }) {
@@ -14,94 +18,128 @@ export class ZKDeviceClient {
     this.sessionId = 0;
     this.replyId = 0;
     this.timeout = 1000;
+    this.heartbeatTimer = null;
+    this.isReconnecting = false;
   }
 
   createSocket(cbError, cbClose) {
     return new Promise((resolve, reject) => {
-      this.socket = new net.Socket()
+      this.socket = new net.Socket();
 
-      this.socket.once('error', err => {
-        reject(err)
-        cbError && cbError(err)
-      })
-
-
-
-      this.socket.once('connect', () => {
-  
-        resolve(this.socket)
-      })
-
-      this.socket.once('close', (err) => {
-        this.socket = null;
-        cbClose && cbClose('tcp')
-      })
-
-
-      if (this.timeout) {
-        this.socket.setTimeout(this.timeout)
-      }
-
-      this.socket.connect(this.port, this.ip)
-    })
-  }
-
-  connectWithCmd() {
-    return new Promise(async (resolve, reject) => {
-      try {
-        const reply = await this.executeCmd(COMMANDS.CMD_CONNECT, '')
-        if (reply) {
-          resolve(true)
-        } else {
-
-          reject(new Error('NO_REPLY_ON_CMD_CONNECT'))
-        }
-      } catch (err) {
-        reject(err)
-      }
-    })
-  }
-
-  async authenticate() {
-    return new Promise((resolve, reject) => {
-      this.socket.once("data", (data) => {
-      
-        // if (response.command === CMD_ACK_UNAUTH) {
-        //   console.log("🔐 Device requires authentication...");
-
-        //   this.sessionId = response.sessionId;
-        //   this.replyId = 1;
-
-        //   const payload = Buffer.alloc(4);
-        //   payload.writeUInt32LE(this.commKey);
-
-        //   const authPacket = buildPacket(CMD_AUTH, payload, this.sessionId, this.replyId);
-        //   this.socket.write(authPacket);
-
-        //   this.socket.once("data", (authRespBuf) => {
-        //     const authResp = parseResponse(authRespBuf);
-        //     console.log("🔐 Auth response:", authResp);
-
-        //     if (authResp.command === CMD_ACK_OK) {
-        //       console.log("✅ Auth successful!");
-        //       this.replyId++;
-        //       resolve(true);
-        //     } else {
-        //       reject(new Error("❌ Auth failed"));
-        //     }
-        //   });
-        // } else if ([CMD_ACK_OK, CMD_CONNECT].includes(response.command)) {
-        //   this.sessionId = response.sessionId;
-        //   this.replyId = 1;
-        //   console.log("✅ Connected without auth needed");
-        //   resolve(true);
-        // } else {
-        //   reject(new Error("❌ Unexpected response to CMD_CONNECT"));
-        // }
+      this.socket.once('error', (err) => {
+        console.log('err', err);
+        reject(err);
+        cbError && cbError(err);
       });
 
-      const connectPacket = buildPacket(CMD_CONNECT, Buffer.alloc(0), 0, 0);
-      this.socket.write(connectPacket);
+      this.socket.once('connect', () => {
+        this.monitorConnection();
+        this.startHeartbeat();
+        resolve(this.socket);
+      });
+
+      this.socket.once('close', (err) => {
+        console.log('err', err);
+        this.socket = null;
+        cbClose && cbClose('tcp');
+      });
+
+      if (this.timeout) {
+        this.socket.setTimeout(this.timeout);
+      }
+
+      this.socket.connect(this.port, this.ip);
+    });
+  }
+
+  monitorConnection(cb) {
+    if (!this.socket) return;
+
+    this.socket.removeAllListeners('close');
+    this.socket.removeAllListeners('error');
+    this.socket.removeAllListeners('end');
+
+    this.socket.on('close', () => {
+      console.warn('📴 Device disconnected (close).');
+      this.handleReconnection(cb);
+    });
+
+    this.socket.on('error', (err) => {
+      console.error('❌ Socket error:', err.message);
+
+      this.handleReconnection(cb);
+    });
+
+    this.socket.on('end', () => {
+      console.warn('📴 Socket ended.');
+      this.handleReconnection(cb);
+    });
+  }
+
+  async handleReconnection(cb, delay = 5000) {
+    if (this.isReconnecting) return;
+    this.isReconnecting = true;
+
+    while (true) {
+      try {
+        console.log('🔄 Reconnecting to device...');
+        await this.createSocket();
+        await this.connectWithCmd();
+        this.monitorConnection(cb);
+        this.startHeartbeat(cb);
+        console.log('✅ Reconnected to device.');
+
+        this.isReconnecting = false;
+        break;
+      } catch (err) {
+        console.warn('Reconnect attempt failed:', err.message);
+
+        await new Promise((res) => setTimeout(res, delay));
+      }
+    }
+  }
+
+  startHeartbeat(cb = () => {}, interval = 10000) {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+    }
+
+    this.heartbeatTimer = setInterval(async () => {
+      if (!this.socket || this.socket.destroyed) {
+        console.warn('⚠️ Socket is destroyed. Attempting reconnection...');
+
+        this.handleReconnection(cb);
+        cb(false);
+        return;
+      }
+
+      try {
+        await this.executeCmd(COMMANDS.CMD_CONNECT);
+        console.log('💓 Heartbeat success: device is responsive.');
+        cb(true);
+      } catch (err) {
+        console.warn(
+          '💔 Heartbeat failed, assuming device offline:',
+          err.message
+        );
+        cb(false);
+        this.handleReconnection(cb);
+      }
+    }, interval);
+  }
+
+  async connectWithCmd() {
+    return new Promise(async (resolve, reject) => {
+      try {
+        const reply = await this.executeCmd(COMMANDS.CMD_CONNECT, '');
+        if (reply) {
+          resolve(true);
+        } else {
+          reject(new Error('NO_REPLY_ON_CMD_CONNECT'));
+        }
+      } catch (err) {
+        reject(err);
+      }
     });
   }
 
@@ -109,23 +147,24 @@ export class ZKDeviceClient {
     return new Promise((resolve, reject) => {
       let timer = null;
 
-      this.socket.once("data", (data) => {
-       
+      this.socket.once('data', (data) => {
         if (timer) clearTimeout(timer);
         resolve(data);
       });
 
       this.socket.write(msg, null, (err) => {
         if (err) {
-          console.log("err 127",err.message);
           return reject(err);
         }
 
         if (this.socket.timeout || isConnectPhase) {
-          timer = setTimeout(() => {
-            clearTimeout(timer);
-            reject(new Error("TIMEOUT_ON_WRITING_MESSAGE"));
-          }, isConnectPhase ? 2000 : this.socket.timeout);
+          timer = setTimeout(
+            () => {
+              clearTimeout(timer);
+              reject(new Error('TIMEOUT_ON_WRITING_MESSAGE'));
+            },
+            isConnectPhase ? 2000 : this.socket.timeout
+          );
         }
       });
     });
@@ -137,7 +176,7 @@ export class ZKDeviceClient {
    * @param {Buffer} data - The payload to send.
    * @returns {Promise<Buffer>} - The cleaned response buffer.
    */
-  executeCmd(command, data="") {
+  executeCmd(command, data = '') {
     return new Promise(async (resolve, reject) => {
       try {
         if (command === CMD_CONNECT) {
@@ -147,11 +186,13 @@ export class ZKDeviceClient {
           this.replyId++;
         }
 
-       
-        const packet = buildPacket(command,data,this.sessionId, this.replyId);
-       
-        const response = await this.writeMessage(packet, command === CMD_CONNECT || command === CMD_EXIT);
-        
+        const packet = buildPacket(command, data, this.sessionId, this.replyId);
+
+        const response = await this.writeMessage(
+          packet,
+          command === CMD_CONNECT || command === CMD_EXIT
+        );
+
         const cleaned = removePacket(response);
 
         if (cleaned && cleaned.length >= 0) {
@@ -170,272 +211,301 @@ export class ZKDeviceClient {
   close() {
     if (this.socket) {
       this.socket.destroy();
-      console.log("🔌 Socket connection closed.");
+      console.log('🔌 Socket connection closed.');
     }
   }
 
   closeSocket() {
     return new Promise((resolve, reject) => {
-      this.socket.removeAllListeners('data')
+      this.socket.removeAllListeners('data');
       this.socket.end(() => {
-        clearTimeout(timer)
-        resolve(true)
-      })
+        clearTimeout(timer);
+        resolve(true);
+      });
       /**
        * When socket isn't connected so this.socket.end will never resolve
        * we use settimeout for handling this case
        */
       const timer = setTimeout(() => {
-        resolve(true)
-      }, 2000)
-    })
+        resolve(true);
+      }, 2000);
+    });
   }
-
 
   requestData(msg) {
-      return new Promise((resolve, reject) => {
-        let timer = null
-        let replyBuffer = Buffer.from([])
-        const internalCallback = (data) => {
-          this.socket.removeListener('data', handleOnData)
-          timer && clearTimeout(timer)
-          resolve(data)
-        }
+    return new Promise((resolve, reject) => {
+      let timer = null;
+      let replyBuffer = Buffer.from([]);
+      const internalCallback = (data) => {
+        this.socket.removeListener('data', handleOnData);
+        timer && clearTimeout(timer);
+        resolve(data);
+      };
 
-        const handleOnData = (data) => {
-          replyBuffer = Buffer.concat([replyBuffer, data])
-          if (checkNotEventTCP(data)) return;
-          clearTimeout(timer)   
-          const header = decodeTCPHeader(replyBuffer.subarray(0,16));
+      const handleOnData = (data) => {
+        replyBuffer = Buffer.concat([replyBuffer, data]);
+        if (checkNotEventTCP(data)) return;
+        clearTimeout(timer);
+        const header = decodeTCPHeader(replyBuffer.subarray(0, 16));
 
-          if(header.commandId === COMMANDS.CMD_DATA){
-            timer = setTimeout(()=>{
-              internalCallback(replyBuffer)
-            }, 1000)
-          }else{
-            timer = setTimeout(() => {
-              reject(new Error('TIMEOUT_ON_RECEIVING_REQUEST_DATA'))
-            }, this.timeout)
-
-            const packetLength = data.readUIntLE(4, 2)
-            if (packetLength > 8) {
-              internalCallback(data)
-            }
-          }
-        }
-
-
-        
-        this.socket.on('data', handleOnData)
-
-        this.socket.write(msg, null, err => {
-          
-          if (err) {
-            reject(err)
-          }
-
+        if (header.commandId === COMMANDS.CMD_DATA) {
           timer = setTimeout(() => {
-            reject(Error('TIMEOUT_IN_RECEIVING_RESPONSE_AFTER_REQUESTING_DATA'))
-          }, this.timeout)
+            internalCallback(replyBuffer);
+          }, 1000);
+        } else {
+          timer = setTimeout(() => {
+            reject(new Error('TIMEOUT_ON_RECEIVING_REQUEST_DATA'));
+          }, this.timeout);
 
-        })
-    })
+          const packetLength = data.readUIntLE(4, 2);
+          if (packetLength > 8) {
+            internalCallback(data);
+          }
+        }
+      };
 
+      this.socket.on('data', handleOnData);
+
+      this.socket.write(msg, null, (err) => {
+        if (err) {
+          reject(err);
+        }
+
+        timer = setTimeout(() => {
+          reject(Error('TIMEOUT_IN_RECEIVING_RESPONSE_AFTER_REQUESTING_DATA'));
+        }, this.timeout);
+      });
+    });
   }
-
-
 
   sendChunkRequest(start, size) {
     this.replyId++;
-    const reqData = Buffer.alloc(8)
-    reqData.writeUInt32LE(start, 0)
-    reqData.writeUInt32LE(size, 4)
-    const buf = buildPacket(COMMANDS.CMD_DATA_RDY, reqData,this.sessionId, this.replyId)
+    const reqData = Buffer.alloc(8);
+    reqData.writeUInt32LE(start, 0);
+    reqData.writeUInt32LE(size, 4);
+    const buf = buildPacket(
+      COMMANDS.CMD_DATA_RDY,
+      reqData,
+      this.sessionId,
+      this.replyId
+    );
 
-    this.socket.write(buf, null, err => {
+    this.socket.write(buf, null, (err) => {
       if (err) {
-        log(`[TCP][SEND_CHUNK_REQUEST]` + err.toString())
+        log(`[TCP][SEND_CHUNK_REQUEST]` + err.toString());
       }
-    })
+    });
   }
 
-
-
-    readWithBuffer(reqData, cb = null) {
+  readWithBuffer(reqData, cb = null) {
     return new Promise(async (resolve, reject) => {
-
       this.replyId++;
-      const buf = buildPacket(COMMANDS.CMD_DATA_WRRQ, reqData,this.sessionId, this.replyId)
-      let reply = null
+      const buf = buildPacket(
+        COMMANDS.CMD_DATA_WRRQ,
+        reqData,
+        this.sessionId,
+        this.replyId
+      );
+      let reply = null;
 
       try {
-        reply = await this.requestData(buf)
-
+        reply = await this.requestData(buf);
       } catch (err) {
-        reject(err)
+        reject(err);
       }
 
-      const header = decodeTCPHeader(reply.subarray(0, 16))
+      const header = decodeTCPHeader(reply.subarray(0, 16));
       switch (header.commandId) {
         case COMMANDS.CMD_DATA: {
-          resolve({ data: reply.subarray(16), mode: 8 })
+          resolve({ data: reply.subarray(16), mode: 8 });
           break;
         }
         case COMMANDS.CMD_ACK_OK:
         case COMMANDS.CMD_PREPARE_DATA: {
-          // this case show that data is prepared => send command to get these data 
+          // this case show that data is prepared => send command to get these data
           // reply variable includes information about the size of following data
-          const recvData = reply.subarray(16)
-          const size = recvData.readUIntLE(1, 4)
-
+          const recvData = reply.subarray(16);
+          const size = recvData.readUIntLE(1, 4);
 
           // We need to split the data to many chunks to receive , because it's to large
           // After receiving all chunk data , we concat it to TotalBuffer variable , that 's the data we want
-          let remain = size % MAX_CHUNK
-          let numberChunks = Math.round(size - remain) / MAX_CHUNK
-          let totalPackets = numberChunks + (remain > 0 ? 1 : 0)
-          let replyData = Buffer.from([])
+          let remain = size % MAX_CHUNK;
+          let numberChunks = Math.round(size - remain) / MAX_CHUNK;
+          let totalPackets = numberChunks + (remain > 0 ? 1 : 0);
+          let replyData = Buffer.from([]);
 
+          let totalBuffer = Buffer.from([]);
+          let realTotalBuffer = Buffer.from([]);
 
-          let totalBuffer = Buffer.from([])
-          let realTotalBuffer = Buffer.from([])
-
-
-          const timeout = 10000
+          const timeout = 10000;
           let timer = setTimeout(() => {
-            internalCallback(replyData, new Error('TIMEOUT WHEN RECEIVING PACKET'))
-          }, timeout)
-
+            internalCallback(
+              replyData,
+              new Error('TIMEOUT WHEN RECEIVING PACKET')
+            );
+          }, timeout);
 
           const internalCallback = (replyData, err = null) => {
             // this.socket && this.socket.removeListener('data', handleOnData)
-            timer && clearTimeout(timer)
-            resolve({ data: replyData, err })
-          }
-
+            timer && clearTimeout(timer);
+            resolve({ data: replyData, err });
+          };
 
           const handleOnData = (reply) => {
-
             if (checkNotEventTCP(reply)) return;
-            clearTimeout(timer)
+            clearTimeout(timer);
             timer = setTimeout(() => {
-              internalCallback(replyData,
-                new Error(`TIME OUT !! ${totalPackets} PACKETS REMAIN !`))
-            }, timeout)
+              internalCallback(
+                replyData,
+                new Error(`TIME OUT !! ${totalPackets} PACKETS REMAIN !`)
+              );
+            }, timeout);
 
-            totalBuffer = Buffer.concat([totalBuffer, reply])
-            const packetLength = totalBuffer.readUIntLE(4, 2)
+            totalBuffer = Buffer.concat([totalBuffer, reply]);
+            const packetLength = totalBuffer.readUIntLE(4, 2);
             if (totalBuffer.length >= 8 + packetLength) {
+              realTotalBuffer = Buffer.concat([
+                realTotalBuffer,
+                totalBuffer.subarray(16, 8 + packetLength),
+              ]);
+              totalBuffer = totalBuffer.subarray(8 + packetLength);
 
-              realTotalBuffer = Buffer.concat([realTotalBuffer, totalBuffer.subarray(16, 8 + packetLength)])
-              totalBuffer = totalBuffer.subarray(8 + packetLength)
+              if (
+                (totalPackets > 1 &&
+                  realTotalBuffer.length === MAX_CHUNK + 8) ||
+                (totalPackets === 1 && realTotalBuffer.length === remain + 8)
+              ) {
+                replyData = Buffer.concat([
+                  replyData,
+                  realTotalBuffer.subarray(8),
+                ]);
+                totalBuffer = Buffer.from([]);
+                realTotalBuffer = Buffer.from([]);
 
-              if ((totalPackets > 1 && realTotalBuffer.length === MAX_CHUNK + 8)
-                || (totalPackets === 1 && realTotalBuffer.length === remain + 8)) {
-
-                replyData = Buffer.concat([replyData, realTotalBuffer.subarray(8)])
-                totalBuffer = Buffer.from([])
-                realTotalBuffer = Buffer.from([])
-
-                totalPackets -= 1
-                cb && cb(replyData.length, size)
+                totalPackets -= 1;
+                cb && cb(replyData.length, size);
 
                 if (totalPackets <= 0) {
-                  internalCallback(replyData)
+                  internalCallback(replyData);
                 }
               }
             }
-          }
+          };
 
           this.socket.once('close', () => {
-            internalCallback(replyData, new Error('Socket is disconnected unexpectedly'))
-          })
+            internalCallback(
+              replyData,
+              new Error('Socket is disconnected unexpectedly')
+            );
+          });
 
           this.socket.on('data', handleOnData);
 
           for (let i = 0; i <= numberChunks; i++) {
             if (i === numberChunks) {
-              this.sendChunkRequest(numberChunks * MAX_CHUNK, remain)
+              this.sendChunkRequest(numberChunks * MAX_CHUNK, remain);
             } else {
-              this.sendChunkRequest(i * MAX_CHUNK, MAX_CHUNK)
+              this.sendChunkRequest(i * MAX_CHUNK, MAX_CHUNK);
             }
           }
 
           break;
         }
         default: {
-          reject(new Error('ERROR_IN_UNHANDLE_CMD ' + exportErrorMessage(header.commandId)))
+          reject(
+            new Error(
+              'ERROR_IN_UNHANDLE_CMD ' + exportErrorMessage(header.commandId)
+            )
+          );
         }
       }
-    })
+    });
   }
 
-    async freeData() {
-    return await this.executeCmd(COMMANDS.CMD_FREE_DATA, '')
+  async freeData() {
+    return await this.executeCmd(COMMANDS.CMD_FREE_DATA, '');
   }
 
   async getInfo() {
     try {
       // console.log(this);
-      const data = await this.executeCmd(COMMANDS.CMD_GET_FREE_SIZES, '')
+      const data = await this.executeCmd(COMMANDS.CMD_GET_FREE_SIZES, '');
 
-     
       return {
         totalUsers: data.readUIntLE(24, 4),
         totalLogs: data.readUIntLE(40, 4),
-        logCapacity: data.readUIntLE(72, 4)
-      }
+        logCapacity: data.readUIntLE(72, 4),
+      };
     } catch (err) {
-      return Promise.reject(err)
+      return Promise.reject(err);
     }
   }
 
-
- async getRealTimeLogs(cb = () => { }) {
+  async getRealTimeLogs(cb = () => {}) {
     this.replyId++;
 
-  
     // console.log(this);
-    const buf = buildPacket(COMMANDS.CMD_REG_EVENT, REQUEST_DATA.GET_REAL_TIME_EVENT,this.sessionId, this.replyId)
-  
-    
-    this.socket.write(buf, null, err => {
-      if(err){
-      console.log("error ar 405",err);
+    const buf = buildPacket(
+      COMMANDS.CMD_REG_EVENT,
+      REQUEST_DATA.GET_REAL_TIME_EVENT,
+      this.sessionId,
+      this.replyId
+    );
+
+    this.socket.write(buf, null, (err) => {
+      if (err) {
+        console.log('error ar 405', err);
       }
-    })
+    });
 
     // console.log("this.socket.listenerCount('data')",this.socket.listenerCount('data'));
-    this.socket.listenerCount('data') === 0 && this.socket.on('data', (data) => {
+    this.socket.listenerCount('data') === 0 &&
+      this.socket.on('data', (data) => {
+        if (!checkNotEventTCP(data)) return;
 
-
-      
-      if (!checkNotEventTCP(data)) return;
-
-      if (data.length > 16) {
-        cb(decodeRecordRealTimeLog52(data))
-      }
-
-    })
-
+        if (data.length > 16) {
+          cb(decodeRecordRealTimeLog52(data));
+        }
+      });
   }
 
- async enableDevice() {
-        try {
-            return await this.executeCmd(COMMANDS.CMD_ENABLEDEVICE, '');
-        } catch (err) {
-            console.error('Error enabling device:', err);
-            throw err;  // Optionally, re-throw the error if you need to handle it upstream
-        }
+  async deleteUser(uid) {
+    try {
+      // Validate input parameter
+      if (parseInt(uid) <= 0 || parseInt(uid) > 3000) {
+        throw new Error('Invalid UID: must be between 1 and 3000');
+      }
+
+      // Allocate and initialize the buffer
+      const commandBuffer = Buffer.alloc(72);
+
+      // Write UID to the buffer
+      commandBuffer.writeUInt16LE(parseInt(uid), 0);
+
+      // Send the delete command and return the result
+      return await this.executeCmd(COMMANDS.CMD_DELETE_USER, commandBuffer);
+    } catch (err) {
+      // Log error details for debugging
+      console.error('Error deleting user:', err);
+
+      // Re-throw error for upstream handling
+      throw err;
     }
+  }
+
+  async enableDevice() {
+    try {
+      return await this.executeCmd(COMMANDS.CMD_ENABLEDEVICE, '');
+    } catch (err) {
+      console.error('Error enabling device:', err);
+      throw err; // Optionally, re-throw the error if you need to handle it upstream
+    }
+  }
 
   async disconnect() {
     try {
-      await this.executeCmd(COMMANDS.CMD_EXIT, '')
-    } catch (err) {
-
-    }
-    return await this.closeSocket()
+      await this.executeCmd(COMMANDS.CMD_EXIT, '');
+    } catch (err) {}
+    return await this.closeSocket();
   }
-
 }
