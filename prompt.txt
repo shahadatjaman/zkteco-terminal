@@ -1,1 +1,0 @@
-A developer connects the device and retrieves data in Example.js. Don’t copy it—just observe how the issue is solved.

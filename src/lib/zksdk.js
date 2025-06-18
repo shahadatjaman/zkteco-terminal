@@ -1,3 +1,4 @@
+import { findLogByRecordTime } from '../utils/index.js';
 import { ZKDeviceClient } from './connection.js';
 import { ERROR_TYPES, ZKError } from './Error.js';
 
@@ -57,13 +58,6 @@ class ZKSDK {
     return await this.functionWrapper(() => this.zklibTcp.disconnect());
   }
 
-  async getInfo() {
-    return await this.functionWrapper(() => this.zklibTcp.getInfo());
-  }
-  async deleteUser(uid) {
-    return await this.functionWrapper(() => this.zklibTcp.deleteUser(uid));
-  }
-
   async enableDevice() {
     return await this.functionWrapper(() => this.zklibTcp.enableDevice());
   }
@@ -77,6 +71,37 @@ class ZKSDK {
   async getRealTimeLogs(cb) {
     console.log('<======Get realtime data from here ======>');
     return await this.functionWrapper(() => this.zklibTcp.getRealTimeLogs(cb));
+  }
+
+  async getPIN() {
+    return await this.functionWrapper(() => this.zklibTcp.getPIN());
+  }
+
+  async setUser(uid, userid, name, password, role = 0, cardno = 0) {
+    return await this.functionWrapper(() =>
+      this.zklibTcp.setUser(uid, userid, name, password, role, cardno)
+    );
+  }
+
+  async deleteUser(uid) {
+    return await this.functionWrapper(() => this.zklibTcp.deleteUser(uid));
+  }
+
+  async getTime() {
+    return await this.functionWrapper(() => this.zklibTcp.getTime());
+  }
+
+  async getAttendances() {
+    const records = await this.zklibTcp.getAttendances();
+    return records;
+  }
+
+  async clearAttendanceLog() {
+    return await this.functionWrapper(() => this.zklibTcp.clearAttendanceLog());
+  }
+
+  async getAttendances(cb) {
+    return await this.functionWrapper(() => this.zklibTcp.getAttendances(cb));
   }
 }
 

@@ -3,11 +3,13 @@ import COMMANDS from './commands.js';
 import { buildPacket, parseResponse, removePacket } from './packet.js';
 import {
   checkNotEventTCP,
+  decodeRecordData40,
   decodeRecordRealTimeLog52,
   decodeTCPHeader,
+  findLogByRecordTime,
 } from '../utils/index.js';
 
-const { CMD_CONNECT, CMD_EXIT, REQUEST_DATA } = COMMANDS;
+const { CMD_CONNECT, CMD_EXIT, REQUEST_DATA, MAX_CHUNK } = COMMANDS;
 
 export class ZKDeviceClient {
   constructor({ ip, port = 4370, commKey = 0 }) {
@@ -426,25 +428,24 @@ export class ZKDeviceClient {
     return await this.executeCmd(COMMANDS.CMD_FREE_DATA, '');
   }
 
-  async getInfo() {
-    try {
-      // console.log(this);
-      const data = await this.executeCmd(COMMANDS.CMD_GET_FREE_SIZES, '');
+  // async getInfo() {
+  //   try {
+  //     // console.log(this);
+  //     const data = await this.executeCmd(COMMANDS.CMD_GET_FREE_SIZES, '');
 
-      return {
-        totalUsers: data.readUIntLE(24, 4),
-        totalLogs: data.readUIntLE(40, 4),
-        logCapacity: data.readUIntLE(72, 4),
-      };
-    } catch (err) {
-      return Promise.reject(err);
-    }
-  }
+  //     return {
+  //       totalUsers: data.readUIntLE(2, 4),
+  //       totalLogs: data.readUIntLE(40, 4),
+  //       logCapacity: data.readUIntLE(72, 4),
+  //     };
+  //   } catch (err) {
+  //     return Promise.reject(err);
+  //   }
+  // }
 
   async getRealTimeLogs(cb = () => {}) {
     this.replyId++;
 
-    // console.log(this);
     const buf = buildPacket(
       COMMANDS.CMD_REG_EVENT,
       REQUEST_DATA.GET_REAL_TIME_EVENT,
@@ -458,21 +459,63 @@ export class ZKDeviceClient {
       }
     });
 
-    // console.log("this.socket.listenerCount('data')",this.socket.listenerCount('data'));
     this.socket.listenerCount('data') === 0 &&
-      this.socket.on('data', (data) => {
+      this.socket.on('data', async (data) => {
         if (!checkNotEventTCP(data)) return;
 
         if (data.length > 16) {
-          cb(decodeRecordRealTimeLog52(data));
+          const docodedData = decodeRecordRealTimeLog52(data);
+
+          const logs = await this.getAttendances();
+
+          const relaTimeData = findLogByRecordTime(docodedData, logs.data);
+
+          cb(relaTimeData);
         }
       });
+  }
+
+  async setUser(uid, userid, name, password, role = 0, cardno = 0) {
+    try {
+      // Validate input parameters
+      if (
+        parseInt(uid) <= 0 ||
+        parseInt(uid) > 3000 ||
+        userid.length > 9 ||
+        name.length > 24 ||
+        password.length > 8 ||
+        cardno.toString().length > 10
+      ) {
+        throw new Error('Invalid input parameters');
+      }
+
+      // Allocate and initialize the buffer
+      const commandBuffer = Buffer.alloc(72);
+
+      // Fill the buffer with user data
+      commandBuffer.writeUInt16LE(parseInt(uid), 0);
+      commandBuffer.writeUInt16LE(role, 2);
+      commandBuffer.write(password.padEnd(8, '\0'), 3, 8); // Ensure password is 8 bytes
+      commandBuffer.write(name.padEnd(24, '\0'), 11, 24); // Ensure name is 24 bytes
+      commandBuffer.writeUInt16LE(parseInt(cardno), 35);
+      commandBuffer.writeUInt32LE(0, 40); // Placeholder or reserved field
+      commandBuffer.write(userid.padEnd(9, '\0'), 48, 9); // Ensure userid is 9 bytes
+
+      // Send the command and return the result
+      return await this.executeCmd(COMMANDS.CMD_USER_WRQ, commandBuffer);
+    } catch (err) {
+      // Log error details for debugging
+      console.error('Error setting user:', err);
+
+      // Re-throw error for upstream handling
+      throw err;
+    }
   }
 
   async deleteUser(uid) {
     try {
       // Validate input parameter
-      if (parseInt(uid) <= 0 || parseInt(uid) > 3000) {
+      if (parseInt(uid) >= 0 || parseInt(uid) > 3000) {
         throw new Error('Invalid UID: must be between 1 and 3000');
       }
 
@@ -502,10 +545,115 @@ export class ZKDeviceClient {
     }
   }
 
+  async getPIN() {
+    const keyword = '~PIN2Width';
+
+    try {
+      // Execute the command to get the PIN information
+      const data = await this.executeCmd(COMMANDS.CMD_OPTIONS_RRQ, keyword);
+
+      // Extract and format the PIN information from the response data
+      const pin = data
+        .slice(8) // Skip the first 8 bytes (header)
+        .toString('ascii') // Convert buffer to ASCII string
+        .replace(`${keyword}=`, '') // Remove the keyword prefix
+        .replace(/\u0000/g, ''); // Remove null characters
+
+      return pin;
+    } catch (err) {
+      // Log the error for debugging
+      console.error('Error getting PIN:', err);
+      // Re-throw the error to be handled by the caller
+      throw err;
+    }
+  }
+
   async disconnect() {
     try {
       await this.executeCmd(COMMANDS.CMD_EXIT, '');
     } catch (err) {}
     return await this.closeSocket();
+  }
+
+  async getTime() {
+    try {
+      // Execute the command to get the current time
+      const response = await this.executeCmd(COMMANDS.CMD_GET_TIME, '');
+
+      // Check if the response is valid
+      if (!response || response.length < 12) {
+        throw new Error('Invalid response received for time command');
+      }
+
+      // Extract and decode the time value from the response
+      const timeValue = response.readUInt32LE(8); // Read 4 bytes starting at offset 8
+      return timeParser.decode(timeValue); // Parse and return the decoded time
+    } catch (err) {
+      // Log the error for debugging
+      console.error('Error getting time:', err);
+
+      // Re-throw the error for the caller to handle
+      throw err;
+    }
+  }
+
+  async clearAttendanceLog() {
+    try {
+      // Execute the command to clear attendance logs
+      return await this.executeCmd(COMMANDS.CMD_CLEAR_ATTLOG, '');
+    } catch (err) {
+      // Log the error for debugging purposes
+      console.error('Error clearing attendance log:', err);
+      // Re-throw the error to be handled by the caller
+      throw err;
+    }
+  }
+
+  async getAttendances(callbackInProcess = () => {}) {
+    try {
+      // Free any existing buffer data to prepare for a new request
+      if (this.socket) {
+        await this.freeData();
+      }
+
+      // Request attendance logs and handle chunked data
+      const data = await this.readWithBuffer(
+        REQUEST_DATA.GET_ATTENDANCE_LOGS,
+        callbackInProcess
+      );
+
+      // Free buffer data after receiving the attendance logs
+      if (this.socket) {
+        await this.freeData();
+      }
+
+      // Constants for record processing
+      const RECORD_PACKET_SIZE = 40;
+
+      // Ensure data.data is a valid buffer
+      if (!data.data || !(data.data instanceof Buffer)) {
+        throw new Error('Invalid data received');
+      }
+
+      // Process the record data
+      let recordData = data.data.subarray(4); // Skip header
+      const records = [];
+
+      // Process each attendance record
+      while (recordData.length >= RECORD_PACKET_SIZE) {
+        const record = decodeRecordData40(
+          recordData.subarray(0, RECORD_PACKET_SIZE)
+        );
+        records.push({ ...record }); // Add IP address to each record
+        recordData = recordData.subarray(RECORD_PACKET_SIZE); // Move to the next packet
+      }
+
+      // Return the list of attendance records
+      return { data: records };
+    } catch (err) {
+      // Log and re-throw the error
+      console.error('Error getting attendance records:', err);
+      throw err; // Re-throw the error for handling by the caller
+    }
   }
 }

@@ -1,7 +1,8 @@
 import ZKSDK from './lib/zksdk.js';
+import { findLogByRecordTime } from './utils/index.js';
 
 async function main() {
-  const zkClient = new ZKSDK({ ip: '192.168.1.5' });
+  const zkClient = new ZKSDK({ ip: '192.168.1.2' });
 
   try {
     await zkClient.createSocket(async (status) => {
@@ -9,10 +10,16 @@ async function main() {
 
       if (status) {
         await zkClient.enableDevice();
-        await zkClient.getRealTimeLogs((data) => {
-          // await zkClient.deleteUser('1');
+
+        await zkClient.getRealTimeLogs(async (data) => {
           console.log('real time data', data);
         });
+
+        // const logs = await zkClient.getAttendances(function () {
+        //   if (err) throw err;
+        //   console.log('Very cool!');
+        // });
+        // console.log(logs);
       }
     });
 
@@ -34,3 +41,5 @@ async function main() {
 }
 
 main();
+// local log - Wed Jun 18 2025 13:10:02 GMT+0600 (Bangladesh Standard Time)
+// real time log - Wed Jun 18, 2025, 13:16:56 GMT+0600 (Bangladesh Standard Time)

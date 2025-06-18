@@ -1,6 +1,6 @@
 {
   "name": "attendify",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "A useful utility library",
   "main": "./src/lib/zksdk.js",
   "scripts": {

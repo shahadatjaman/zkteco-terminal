@@ -12,6 +12,8 @@ export default {
   CMD_SLEEP: 1006,
   CMD_RESUME: 1007,
 
+  CMD_GET_TIME: 201,
+
   // Data transmission
   CMD_DATA_WRRQ: 1503,
   CMD_DATA_RDY: 1504,
@@ -49,6 +51,7 @@ export default {
   CMD_GRPTZ_WRQ: 26,
   CMD_UNLOCK: 31,
   CMD_DOORSTATE_RRQ: 75,
+  CMD_OPTIONS_RRQ: 11, //device
 
   // Realtime
   CMD_REG_EVENT: 500,
@@ -65,6 +68,7 @@ export default {
   CMD_ACK_ERROR_INIT: 65532,
   CMD_ACK_ERROR_DATA: 65531,
 
+  MAX_CHUNK: 65472,
   USHRT_MAX: 65535,
 
   REQUEST_DATA: {
