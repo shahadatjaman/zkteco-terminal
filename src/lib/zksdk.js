@@ -69,7 +69,6 @@ class ZKSDK {
   }
 
   async getRealTimeLogs(cb) {
-    console.log('<======Get realtime data from here ======>');
     return await this.functionWrapper(() => this.zklibTcp.getRealTimeLogs(cb));
   }
 

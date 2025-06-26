@@ -29,7 +29,7 @@ export class ZKDeviceClient {
       this.socket = new net.Socket();
 
       this.socket.once('error', (err) => {
-        console.log('err', err);
+        // console.log('err at 32', err);
         reject(err);
         cbError && cbError(err);
       });
@@ -41,7 +41,6 @@ export class ZKDeviceClient {
       });
 
       this.socket.once('close', (err) => {
-        console.log('err', err);
         this.socket = null;
         cbClose && cbClose('tcp');
       });
@@ -62,18 +61,14 @@ export class ZKDeviceClient {
     this.socket.removeAllListeners('end');
 
     this.socket.on('close', () => {
-      console.warn('📴 Device disconnected (close).');
       this.handleReconnection(cb);
     });
 
     this.socket.on('error', (err) => {
-      console.error('❌ Socket error:', err.message);
-
       this.handleReconnection(cb);
     });
 
     this.socket.on('end', () => {
-      console.warn('📴 Socket ended.');
       this.handleReconnection(cb);
     });
   }
@@ -84,18 +79,14 @@ export class ZKDeviceClient {
 
     while (true) {
       try {
-        console.log('🔄 Reconnecting to device...');
         await this.createSocket();
         await this.connectWithCmd();
         this.monitorConnection(cb);
         this.startHeartbeat(cb);
-        console.log('✅ Reconnected to device.');
 
         this.isReconnecting = false;
         break;
       } catch (err) {
-        console.warn('Reconnect attempt failed:', err.message);
-
         await new Promise((res) => setTimeout(res, delay));
       }
     }
@@ -106,25 +97,29 @@ export class ZKDeviceClient {
       clearInterval(this.heartbeatTimer);
     }
 
+    let lastStatus = null; // Track previous connection status
+
     this.heartbeatTimer = setInterval(async () => {
       if (!this.socket || this.socket.destroyed) {
-        console.warn('⚠️ Socket is destroyed. Attempting reconnection...');
-
+        if (lastStatus !== false) {
+          cb(false); // Emit only if status changed
+          lastStatus = false;
+        }
         this.handleReconnection(cb);
-        cb(false);
         return;
       }
 
       try {
         await this.executeCmd(COMMANDS.CMD_CONNECT);
-        console.log('💓 Heartbeat success: device is responsive.');
-        cb(true);
+        if (lastStatus !== true) {
+          cb(true); // Emit only if status changed
+          lastStatus = true;
+        }
       } catch (err) {
-        console.warn(
-          '💔 Heartbeat failed, assuming device offline:',
-          err.message
-        );
-        cb(false);
+        if (lastStatus !== false) {
+          cb(false); // Emit only if status changed
+          lastStatus = false;
+        }
         this.handleReconnection(cb);
       }
     }, interval);
@@ -427,21 +422,6 @@ export class ZKDeviceClient {
   async freeData() {
     return await this.executeCmd(COMMANDS.CMD_FREE_DATA, '');
   }
-
-  // async getInfo() {
-  //   try {
-  //     // console.log(this);
-  //     const data = await this.executeCmd(COMMANDS.CMD_GET_FREE_SIZES, '');
-
-  //     return {
-  //       totalUsers: data.readUIntLE(2, 4),
-  //       totalLogs: data.readUIntLE(40, 4),
-  //       logCapacity: data.readUIntLE(72, 4),
-  //     };
-  //   } catch (err) {
-  //     return Promise.reject(err);
-  //   }
-  // }
 
   async getRealTimeLogs(cb = () => {}) {
     this.replyId++;

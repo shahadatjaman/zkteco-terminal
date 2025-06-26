@@ -1,20 +1,18 @@
 {
-  "name": "attendify",
-  "version": "1.1.2",
+  "name": "zkteco-terminal",
+  "version": "0.1.1",
   "description": "A useful utility library",
   "main": "./src/lib/zksdk.js",
   "scripts": {
     "test": "echo \"No tests yet\""
   },
   "keywords": [
-    "utils",
-    "example"
+    "zkteco",
+    "zkteco-terminal", 
+    "zkteco-lib"
   ],
   "author": "Shahadat Jaman",
   "license": "MIT",
-  "dependencies": {
-    "attendify": "^1.1.1"
-  },
   "devDependencies": {
     "prettier": "^3.5.3"
   }
