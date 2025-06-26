@@ -3,5 +3,8 @@
   "editor.formatOnSave": true,
   "[javascript]": {
     "editor.formatOnSave": true
-  }
+  },
+    "editor.fontFamily": "'Fira Code'",
+  "editor.fontLigatures": true,
+  "editor.fontSize": 18
 }
