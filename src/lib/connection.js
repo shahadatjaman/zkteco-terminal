@@ -6,6 +6,7 @@ import {
   decodeRecordData40,
   decodeRecordRealTimeLog52,
   decodeTCPHeader,
+  decodeUserData72,
   findLogByRecordTime,
 } from '../utils/index.js';
 
@@ -311,6 +312,11 @@ export class ZKDeviceClient {
         reject(err);
       }
 
+      if (!reply) {
+        cb = null;
+        return null;
+      }
+
       const header = decodeTCPHeader(reply.subarray(0, 16));
       switch (header.commandId) {
         case COMMANDS.CMD_DATA: {
@@ -492,10 +498,42 @@ export class ZKDeviceClient {
     }
   }
 
+  async getUsers() {
+    // Free Buffer Data to request Data
+
+    try {
+      let data = null;
+
+      try {
+        data = await this.readWithBuffer(REQUEST_DATA.GET_USERS);
+      } catch (err) {
+        return null;
+      }
+
+      // Free Buffer Data after requesting data
+      const USER_PACKET_SIZE = 72;
+
+      let userData = data.data.subarray(4);
+
+      let users = [];
+
+      while (userData.length >= USER_PACKET_SIZE) {
+        const user = decodeUserData72(userData.subarray(0, USER_PACKET_SIZE));
+        users.push(user);
+        userData = userData.subarray(USER_PACKET_SIZE);
+      }
+
+      return users;
+    } catch (error) {
+      console.log('error', error);
+      throw new Error(error);
+    }
+  }
+
   async deleteUser(uid) {
     try {
       // Validate input parameter
-      if (parseInt(uid) >= 0 || parseInt(uid) > 3000) {
+      if (parseInt(uid) <= 0 || parseInt(uid) > 3000) {
         throw new Error('Invalid UID: must be between 1 and 3000');
       }
 

@@ -76,7 +76,7 @@ class ZKSDK {
     return await this.functionWrapper(() => this.zklibTcp.getPIN());
   }
 
-  async setUser(uid, userid, name, password, role = 0, cardno = 0) {
+  async setUser(uid, userid, name, password, role = 1, cardno = 0) {
     return await this.functionWrapper(() =>
       this.zklibTcp.setUser(uid, userid, name, password, role, cardno)
     );
@@ -88,6 +88,10 @@ class ZKSDK {
 
   async getTime() {
     return await this.functionWrapper(() => this.zklibTcp.getTime());
+  }
+
+  async getUsers() {
+    return await this.functionWrapper(() => this.zklibTcp.getUsers());
   }
 
   async getAttendances() {
