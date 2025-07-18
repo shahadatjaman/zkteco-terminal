@@ -78,13 +78,6 @@ Compatibility
 - Requires Node.js v14+
 
 
-Contributing to ZKTecoTerminal
---------
-Thank you for your interest in contributing to **ZKTecoTerminal** – a Node.js client for interacting with ZKTeco attendance devices via TCP/IP.
-
-This project helps developers work with biometric terminals (like K14, K40, etc.) using raw ZK protocol commands. Contributions are welcome to improve device support, stability, and functionality.
-
----
 
 Getting Started
 --------
@@ -97,7 +90,7 @@ To get started:
    git clone https://github.com/shax26/zkteco-terminal.git
 
 
-### 🔧 Executing ZK Protocol Commands
+### Executing ZK Protocol Commands
 
 The library includes an `executeCmd` function designed to run ZK protocol commands easily.
 
