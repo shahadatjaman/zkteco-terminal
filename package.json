@@ -1,6 +1,6 @@
 {
   "name": "zkteco-terminal",
-  "version": "0.2.3",
+  "version": "0.2.6",
   "description": "A useful utility library",
   "main": "./src/lib/zksdk.js",
   "scripts": {
@@ -18,10 +18,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/shahadatjaman/zkteco-terminal"
+    "url": "https://github.com/shax26/zkteco-terminal"
   },
   "bugs": {
-    "url": "https://github.com/shahadatjaman/zkteco-terminal"
+    "url": "https://github.com/shax26/zkteco-terminal"
   },
-  "homepage": "https://github.com/shahadatjaman"
+  "homepage": "https://github.com/shax26"
 }

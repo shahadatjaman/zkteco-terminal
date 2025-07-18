@@ -2,7 +2,7 @@ import ZKSDK from './lib/zksdk.js';
 import { findLogByRecordTime } from './utils/index.js';
 
 async function main() {
-  const zkClient = new ZKSDK({ ip: '192.168.1.6' });
+  const zkClient = new ZKSDK({ ip: '103.135.252.69' });
 
   try {
     await zkClient.createSocket(async (status) => {
@@ -11,13 +11,11 @@ async function main() {
       if (status) {
         await zkClient.enableDevice();
 
-        await zkClient.getRealTimeLogs(async (data) => {
-          console.log('real time data', data);
-        });
+        const time = await zkClient.shutdown();
+        console.log('time', time);
 
-        // await zkClient.setUser('YD7I', 'YD7I', 'SHAHADAT', '1234567');
-
-        // await zkClient.deleteUser('4');
+        // const newTime = new Date('2025-06-29T09:12:06.000Z');
+        // await zkClient.setTime(newTime);
       }
     });
   } catch (err) {

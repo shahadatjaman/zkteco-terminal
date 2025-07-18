@@ -3,10 +3,12 @@ import COMMANDS from './commands.js';
 import { buildPacket, parseResponse, removePacket } from './packet.js';
 import {
   checkNotEventTCP,
+  decode,
   decodeRecordData40,
   decodeRecordRealTimeLog52,
   decodeTCPHeader,
   decodeUserData72,
+  encode,
   findLogByRecordTime,
 } from '../utils/index.js';
 
@@ -143,28 +145,32 @@ export class ZKDeviceClient {
 
   writeMessage(msg, isConnectPhase = false) {
     return new Promise((resolve, reject) => {
-      let timer = null;
+      try {
+        let timer = null;
 
-      this.socket.once('data', (data) => {
-        if (timer) clearTimeout(timer);
-        resolve(data);
-      });
+        this.socket.once('data', (data) => {
+          if (timer) clearTimeout(timer);
+          resolve(data);
+        });
 
-      this.socket.write(msg, null, (err) => {
-        if (err) {
-          return reject(err);
-        }
+        this.socket.write(msg, null, (err) => {
+          if (err) {
+            return reject(err);
+          }
 
-        if (this.socket.timeout || isConnectPhase) {
-          timer = setTimeout(
-            () => {
-              clearTimeout(timer);
-              reject(new Error('TIMEOUT_ON_WRITING_MESSAGE'));
-            },
-            isConnectPhase ? 2000 : this.socket.timeout
-          );
-        }
-      });
+          if (this.socket.timeout || isConnectPhase) {
+            timer = setTimeout(
+              () => {
+                clearTimeout(timer);
+                reject(new Error('TIMEOUT_ON_WRITING_MESSAGE'));
+              },
+              isConnectPhase ? 2000 : this.socket.timeout
+            );
+          }
+        });
+      } catch (error) {
+        console.log('error', error);
+      }
     });
   }
 
@@ -207,7 +213,7 @@ export class ZKDeviceClient {
   }
 
   close() {
-    if (this.socket) {
+    if (this.socket && this.socket.connect) {
       this.socket.destroy();
       console.log('🔌 Socket connection closed.');
     }
@@ -593,19 +599,62 @@ export class ZKDeviceClient {
     return await this.closeSocket();
   }
 
+  async setTime(tm) {
+    try {
+      // Validate the input time
+      if (!(tm instanceof Date) && typeof tm !== 'number') {
+        throw new TypeError(
+          'Invalid time parameter. Must be a Date object or a timestamp.'
+        );
+      }
+
+      // Convert the input time to a Date object if it's not already
+      const date = tm instanceof Date ? tm : new Date(tm);
+
+      // Encode the time into the required format
+      const encodedTime = encode(date);
+
+      // Create a buffer and write the encoded time
+      const commandString = Buffer.alloc(32);
+      commandString.writeUInt32LE(encodedTime, 0);
+
+      // Send the command to set the time
+      return await this.executeCmd(COMMANDS.CMD_SET_TIME, commandString);
+    } catch (err) {
+      // Log the error for debugging
+      console.error('Error setting time:', err);
+      // Re-throw the error for the caller to handle
+      throw err;
+    }
+  }
+
+  async voiceTest() {
+    try {
+      // Define the command data for the voice test
+      const commandData = Buffer.from('\x00\x00', 'binary');
+
+      // Execute the command and return the result
+      return await this.executeCmd(COMMANDS.CMD_TESTVOICE, commandData);
+    } catch (err) {
+      // Log the error for debugging purposes
+      console.error('Error executing voice test:', err);
+
+      // Re-throw the error to be handled by the caller
+      throw err;
+    }
+  }
+
   async getTime() {
     try {
       // Execute the command to get the current time
       const response = await this.executeCmd(COMMANDS.CMD_GET_TIME, '');
 
-      // Check if the response is valid
       if (!response || response.length < 12) {
         throw new Error('Invalid response received for time command');
       }
 
-      // Extract and decode the time value from the response
-      const timeValue = response.readUInt32LE(8); // Read 4 bytes starting at offset 8
-      return timeParser.decode(timeValue); // Parse and return the decoded time
+      const timeValue = response.readUInt32LE(8);
+      return decode(timeValue);
     } catch (err) {
       // Log the error for debugging
       console.error('Error getting time:', err);
@@ -672,6 +721,26 @@ export class ZKDeviceClient {
       // Log and re-throw the error
       console.error('Error getting attendance records:', err);
       throw err; // Re-throw the error for handling by the caller
+    }
+  }
+
+  async restart() {
+    try {
+      const t = await this.executeCmd(COMMANDS.CMD_RESTART, '');
+
+      return decode(t.readUInt32LE(8));
+    } catch (err) {
+      return null;
+    }
+  }
+
+  async shutdown() {
+    try {
+      const t = await this.executeCmd(COMMANDS.CMD_POWEROFF, '');
+
+      return decode(t.readUInt32LE(8));
+    } catch (err) {
+      return null;
     }
   }
 }

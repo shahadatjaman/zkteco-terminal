@@ -65,29 +65,33 @@ const createChkSum = (buf) => {
 };
 
 export function buildPacket(command, data, sessionId, replyId) {
-  const dataBuffer = Buffer.from(data);
-  const buf = Buffer.alloc(8 + dataBuffer.length);
+  try {
+    const dataBuffer = Buffer.from(data);
+    const buf = Buffer.alloc(8 + dataBuffer.length);
 
-  buf.writeUInt16LE(command, 0);
-  buf.writeUInt16LE(0, 2);
+    buf.writeUInt16LE(command, 0);
+    buf.writeUInt16LE(0, 2);
 
-  buf.writeUInt16LE(sessionId, 4);
-  buf.writeUInt16LE(replyId, 6);
-  dataBuffer.copy(buf, 8);
+    buf.writeUInt16LE(sessionId, 4);
+    buf.writeUInt16LE(replyId, 6);
+    dataBuffer.copy(buf, 8);
 
-  const chksum2 = createChkSum(buf);
-  buf.writeUInt16LE(chksum2, 2);
+    const chksum2 = createChkSum(buf);
+    buf.writeUInt16LE(chksum2, 2);
 
-  replyId = (replyId + 1) % USHRT_MAX;
-  buf.writeUInt16LE(replyId, 6);
+    replyId = (replyId + 1) % USHRT_MAX;
+    buf.writeUInt16LE(replyId, 6);
 
-  const prefixBuf = Buffer.from([
-    0x50, 0x50, 0x82, 0x7d, 0x13, 0x00, 0x00, 0x00,
-  ]);
+    const prefixBuf = Buffer.from([
+      0x50, 0x50, 0x82, 0x7d, 0x13, 0x00, 0x00, 0x00,
+    ]);
 
-  prefixBuf.writeUInt16LE(buf.length, 4);
+    prefixBuf.writeUInt16LE(buf.length, 4);
 
-  return Buffer.concat([prefixBuf, buf]);
+    return Buffer.concat([prefixBuf, buf]);
+  } catch (error) {
+    console.log('error', error);
+  }
 }
 
 export function removePacket(buf) {

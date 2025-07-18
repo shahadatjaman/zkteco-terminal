@@ -94,7 +94,17 @@ To get started:
 1. **Fork the repository**
 2. **Clone your fork**  
    ```bash
-   git clone https://github.com/your-username/ZKTecoTerminal.git
+   git clone https://github.com/shax26/zkteco-terminal.git
+
+
+### 🔧 Executing ZK Protocol Commands
+
+The library includes an `executeCmd` function designed to run ZK protocol commands easily.
+
+You can explore the full list of available commands by visiting the official [ZK Protocol documentation](https://github.com/adrobinoga/zk-protocol/blob/master/protocol.md). Once you've found the command you need, simply pass it into the `executeCmd` function like so:
+
+```js
+executeCmd('YourCommandHere');
 
 
 Notes

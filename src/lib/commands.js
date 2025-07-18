@@ -35,6 +35,8 @@ export default {
   CMD_USERTZ_WRQ: 24,
   CMD_GET_FREE_SIZES: 50,
 
+  CMD_SET_TIME: 202,
+
   // Attendance
   CMD_ATTLOG_RRQ: 13,
   CMD_CLEAR_ATTLOG: 15,

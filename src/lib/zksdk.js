@@ -90,6 +90,10 @@ class ZKSDK {
     return await this.functionWrapper(() => this.zklibTcp.getTime());
   }
 
+  async setTime(t) {
+    return await this.functionWrapper(() => this.zklibTcp.setTime(t));
+  }
+
   async getUsers() {
     return await this.functionWrapper(() => this.zklibTcp.getUsers());
   }
@@ -105,6 +109,14 @@ class ZKSDK {
 
   async getAttendances(cb) {
     return await this.functionWrapper(() => this.zklibTcp.getAttendances(cb));
+  }
+
+  async restart() {
+    return await this.functionWrapper(() => this.zklibTcp.restart());
+  }
+
+  async shutdown() {
+    return await this.functionWrapper(() => this.zklibTcp.shutdown());
   }
 }
 
